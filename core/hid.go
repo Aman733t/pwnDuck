@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"context"
 	"os"
 	"strconv"
 	"strings"
@@ -11,7 +12,10 @@ import (
 
 const HIDDevice = "/dev/hidg0"
 
-var hidMu sync.Mutex
+var (
+	hidMu      sync.Mutex
+	cancelInject context.CancelFunc
+)
 
 // HID keymaps
 var keymap = map[rune][2]byte{
@@ -91,13 +95,25 @@ func sendString(text string) error {
 	return nil
 }
 
-// RunDucky executes a Ducky Script
+// RunDucky executes a Ducky Script with cancellation support
 func RunDucky(script string) error {
 	hidMu.Lock()
 	defer hidMu.Unlock()
 
+	// Create cancellable context
+	ctx, cancel := context.WithCancel(context.Background())
+	cancelInject = cancel
+	defer func() { cancelInject = nil }()
+
 	lines := strings.Split(strings.TrimSpace(script), "\n")
 	for _, line := range lines {
+		// Check for cancellation before each line
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("injection cancelled")
+		default:
+		}
+
 		line = strings.TrimSpace(line)
 		switch {
 		case line == "" || strings.HasPrefix(line, "REM"):
@@ -106,7 +122,20 @@ func RunDucky(script string) error {
 		case strings.HasPrefix(line, "DELAY "):
 			ms, err := strconv.Atoi(strings.TrimPrefix(line, "DELAY "))
 			if err == nil {
-				time.Sleep(time.Duration(ms) * time.Millisecond)
+				// Cancellable delay — check every 50ms
+				deadline := time.Now().Add(time.Duration(ms) * time.Millisecond)
+				for time.Now().Before(deadline) {
+					select {
+					case <-ctx.Done():
+						return fmt.Errorf("injection cancelled")
+					default:
+						sleep := time.Until(deadline)
+						if sleep > 50*time.Millisecond {
+							sleep = 50 * time.Millisecond
+						}
+						time.Sleep(sleep)
+					}
+				}
 			}
 
 		case strings.HasPrefix(line, "STRING "):
@@ -148,6 +177,18 @@ func RunDucky(script string) error {
 		}
 	}
 	return nil
+}
+
+// CancelInject cancels any running injection
+func CancelInject() {
+	if cancelInject != nil {
+		cancelInject()
+	}
+}
+
+// IsInjecting returns true if injection is in progress
+func IsInjecting() bool {
+	return cancelInject != nil
 }
 
 // HIDAvailable checks if the HID device exists

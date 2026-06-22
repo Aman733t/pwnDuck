@@ -34,6 +34,7 @@ func registerRoutes(mux *http.ServeMux) {
 
 	// Inject
 	mux.HandleFunc("/api/inject", handleInject)
+	mux.HandleFunc("/api/inject/cancel", handleInjectCancel)
 
 	// WiFi
 	mux.HandleFunc("/api/wifi", handleWifi)

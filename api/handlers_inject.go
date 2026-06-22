@@ -49,3 +49,13 @@ func handleStatus(w http.ResponseWriter, r *http.Request) {
 		"loot_count":      len(store.ListLoot()),
 	})
 }
+
+func handleInjectCancel(w http.ResponseWriter, r *http.Request) {
+	if !core.IsInjecting() {
+		jsonErr(w, "no injection in progress", 400)
+		return
+	}
+	core.CancelInject()
+	logger.Warn(logger.SrcHID, "Injection cancelled by user")
+	jsonOK(w, map[string]bool{"ok": true})
+}
