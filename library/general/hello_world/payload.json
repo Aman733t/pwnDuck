@@ -1,0 +1,10 @@
+{
+  "id": "lib_hello_world",
+  "name": "Hello World",
+  "category": "general",
+  "tags": ["test", "basic"],
+  "description": "Types Hello World — use this to test HID injection is working",
+  "author": "PwnDuck",
+  "version": "1.0",
+  "script": "DELAY 1000\nSTRING Hello World from PwnDuck!\nENTER"
+}

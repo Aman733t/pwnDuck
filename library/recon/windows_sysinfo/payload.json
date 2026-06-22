@@ -1,0 +1,10 @@
+{
+  "id": "lib_win_sysinfo",
+  "name": "Windows System Info",
+  "category": "recon",
+  "tags": ["windows", "recon"],
+  "description": "Opens PowerShell and dumps system info — for use on your own machines only",
+  "author": "PwnDuck",
+  "version": "1.0",
+  "script": "DELAY 500\nGUI r\nDELAY 500\nSTRING powershell -WindowStyle Hidden -Command \"systeminfo | Out-File $env:TEMP\\sysinfo.txt\"\nENTER"
+}

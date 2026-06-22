@@ -1,0 +1,9 @@
+{
+  "id": "example_extension",
+  "name": "Example Extension",
+  "version": "1.0",
+  "description": "Example showing how to write a PwnDuck extension",
+  "entrypoint": "run.sh",
+  "trigger": "USB_CONNECTED",
+  "enabled": false
+}
