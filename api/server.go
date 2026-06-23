@@ -44,6 +44,8 @@ func registerRoutes(mux *http.ServeMux) {
 	// Gadget
 	mux.HandleFunc("/api/gadget", handleGadget)
 	mux.HandleFunc("/api/gadget/save", handleGadgetSave)
+	mux.HandleFunc("/api/gadget/ethernet/status", handleEthernetStatus)
+	mux.HandleFunc("/api/gadget/ums/files", handleUMSFiles)
 
 	// Triggers
 	mux.HandleFunc("/api/triggers", handleTriggers)

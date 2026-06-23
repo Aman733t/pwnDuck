@@ -43,6 +43,7 @@ func handleStatus(w http.ResponseWriter, r *http.Request) {
 		"ethernet":        gadget.Ethernet,
 		"mass_storage":    gadget.MassStorage,
 		"udc_state":       core.ReadUDCState(),
+		"eth_client_ip":   core.EthernetClientIP(),
 		"trigger_enabled": cfg.Enabled,
 		"trigger_count":   len(cfg.Triggers),
 		"payload_count":   len(store.GetAllPayloads()),

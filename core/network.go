@@ -2,15 +2,14 @@ package core
 
 import (
 	"fmt"
-	"net"
-	"os/exec"
 	"strings"
+	"os/exec"
 	"time"
 
 	"github.com/pwnduck/logger"
 )
 
-// OSType represents detected target OS
+// OSType represents the detected target OS
 type OSType string
 
 const (
@@ -20,25 +19,26 @@ const (
 	OSUnknown OSType = "unknown"
 )
 
-// DetectTargetOS detects the target OS via TTL fingerprinting
-// Must be called after ethernet gadget is up and target has an IP
-func DetectTargetOS(targetIP string) OSType {
-	if targetIP == "" {
-		targetIP = getUSBClientIP()
-	}
-	if targetIP == "" {
-		logger.Warn(logger.SrcNetwork, "No target IP found for OS detection")
+// DetectOS detects target OS via TTL fingerprinting over usb0
+func DetectOS() OSType {
+	ip := EthernetClientIP()
+	if ip == "" {
+		logger.Warn(logger.SrcNetwork, "No ethernet client connected for OS detection")
 		return OSUnknown
 	}
+	return DetectOSByIP(ip)
+}
 
-	ttl, err := getTTL(targetIP)
+// DetectOSByIP detects OS of a specific IP via TTL
+func DetectOSByIP(ip string) OSType {
+	ttl, err := getTTL(ip)
 	if err != nil {
-		logger.Warn(logger.SrcNetwork, "TTL detection failed: "+err.Error())
+		logger.Warn(logger.SrcNetwork, fmt.Sprintf("TTL ping failed for %s: %s", ip, err.Error()))
 		return OSUnknown
 	}
 
 	os := ttlToOS(ttl)
-	logger.Info(logger.SrcNetwork, fmt.Sprintf("OS detected: %s (TTL=%d IP=%s)", os, ttl, targetIP))
+	logger.Info(logger.SrcNetwork, fmt.Sprintf("OS detected: %s (TTL=%d IP=%s)", os, ttl, ip))
 	return os
 }
 
@@ -47,11 +47,7 @@ func ttlToOS(ttl int) OSType {
 	case ttl >= 120 && ttl <= 128:
 		return OSWindows // Windows default TTL = 128
 	case ttl >= 60 && ttl <= 64:
-		// Mac and Linux both use TTL=64
-		// Differentiate by checking for open port 22 (SSH on Mac by default)
-		return OSLinux // Default to Linux, refine later
-	case ttl >= 250:
-		return OSUnknown // Some network devices
+		return OSLinux // Linux/Mac TTL = 64 — refine later
 	default:
 		return OSUnknown
 	}
@@ -63,57 +59,48 @@ func getTTL(ip string) (int, error) {
 		return 0, err
 	}
 
-	// Parse TTL from ping output
-	// "64 bytes from 192.168.x.x: icmp_seq=1 ttl=64 time=0.123 ms"
-	lines := strings.Split(string(out), "\n")
-	for _, line := range lines {
-		if strings.Contains(line, "ttl=") || strings.Contains(line, "TTL=") {
-			lower := strings.ToLower(line)
-			idx := strings.Index(lower, "ttl=")
-			if idx == -1 {
-				continue
-			}
-			rest := lower[idx+4:]
-			var ttl int
-			fmt.Sscanf(rest, "%d", &ttl)
-			if ttl > 0 {
-				return ttl, nil
-			}
-		}
+	// Parse "ttl=64" from ping output
+	lower := strings.ToLower(string(out))
+	idx := strings.Index(lower, "ttl=")
+	if idx == -1 {
+		return 0, fmt.Errorf("TTL not found in ping output")
 	}
-	return 0, fmt.Errorf("TTL not found in ping output")
+	var ttl int
+	fmt.Sscanf(lower[idx+4:], "%d", &ttl)
+	if ttl == 0 {
+		return 0, fmt.Errorf("failed to parse TTL")
+	}
+	return ttl, nil
 }
 
-// getUSBClientIP finds the IP of the USB ethernet client
-func getUSBClientIP() string {
-	// Check ARP table for usb0 interface
-	out, err := exec.Command("arp", "-n", "-i", "usb0").Output()
-	if err != nil {
-		return ""
-	}
-	lines := strings.Split(string(out), "\n")
-	for _, line := range lines {
-		if strings.Contains(line, "usb0") && !strings.Contains(line, "incomplete") {
-			fields := strings.Fields(line)
-			if len(fields) > 0 {
-				ip := fields[0]
-				if net.ParseIP(ip) != nil {
-					return ip
-				}
-			}
-		}
-	}
-	return ""
-}
-
-// WaitForUSBClient waits for a USB ethernet client to connect (max timeout)
-func WaitForUSBClient(timeout time.Duration) (string, error) {
+// WaitForEthernetClient waits for a USB ethernet client to connect
+func WaitForEthernetClient(timeout time.Duration) (string, error) {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
-		if ip := getUSBClientIP(); ip != "" {
+		if ip := EthernetClientIP(); ip != "" {
 			return ip, nil
 		}
 		time.Sleep(500 * time.Millisecond)
 	}
-	return "", fmt.Errorf("no USB ethernet client connected within %s", timeout)
+	return "", fmt.Errorf("no ethernet client connected within %s", timeout)
+}
+
+// EthernetStatus returns current ethernet gadget status
+func EthernetStatus() map[string]any {
+	clientIP := EthernetClientIP()
+	connected := clientIP != ""
+
+	status := map[string]any{
+		"connected": connected,
+		"client_ip": clientIP,
+		"pi_ip":     "192.168.7.1",
+	}
+
+	if connected {
+		status["os"] = string(DetectOSByIP(clientIP))
+	} else {
+		status["os"] = string(OSUnknown)
+	}
+
+	return status
 }

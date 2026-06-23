@@ -44,9 +44,14 @@ echo "[3/9] Configuring USB OTG..."
 # Blacklist dwc_otg — it conflicts with dwc2 on Pi Zero W
 echo "blacklist dwc_otg" > /etc/modprobe.d/blacklist-dwc_otg.conf
 
-# Load dwc2 and libcomposite on boot
+# Load modules in correct order on boot
+# RNDIS must load before other USB functions for Windows compatibility
 grep -qxF 'dwc2' /etc/modules || echo 'dwc2' >> /etc/modules
 grep -qxF 'libcomposite' /etc/modules || echo 'libcomposite' >> /etc/modules
+grep -qxF 'usb_f_rndis' /etc/modules || echo 'usb_f_rndis' >> /etc/modules
+grep -qxF 'usb_f_ecm' /etc/modules || echo 'usb_f_ecm' >> /etc/modules
+grep -qxF 'usb_f_hid' /etc/modules || echo 'usb_f_hid' >> /etc/modules
+grep -qxF 'usb_f_mass_storage' /etc/modules || echo 'usb_f_mass_storage' >> /etc/modules
 
 # Fix config.txt — add dwc2 overlay under [all] section only
 CONFIG="/boot/firmware/config.txt"
